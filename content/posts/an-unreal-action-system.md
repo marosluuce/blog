@@ -112,7 +112,7 @@ void AMyCharacter::CastMagicMissile()
 }
 ```
 
-This works, but already has scaling issues. Adding new spells requires two functions. Changes to spell casting require changes in each spell function. The spells also share a casting animation and delay. These limitations only grow over time as more spells and casting actors are added.
+This works, but it's already repeating itself and begging for deduplication. Adding new spells requires two functions, one to start the animation and another to finish casting the spell. Changes to spell casting require changes in each spell function. The spells also share a casting animation and delay. These limitations only grow over time as more spells and casting actors are added.
 
 ## Concentrating Power
 
@@ -229,7 +229,7 @@ However the character still can only cast spells and requires changes in C++ to 
 
 ## Generalizing Actions
 
-Adding a generic action abstraction provides significantly more flexibility. So I can a new parent class with a name and an `Execute` method. Other classes will override and implement their own `Execute`.
+Introducing a generic action abstraction provides significantly more flexibility. To do this, I can add a new parent class with a name and an `Execute` method. Other classes will override and implement their own `Execute`.
 
 ```cpp
 // Action.h
