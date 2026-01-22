@@ -14,19 +14,21 @@ A big source of comfort is recognizing familiar design patterns as I follow alon
 
 You may be in a similar position to me, interested and intimidated. If that's the case, I want to walk through building a common feature of games, an action system. It's something that felt familiar to me while learning Unreal and built up my confidence.
 
-This will focus on C++, though it could be built in Blueprints as well. For the sake of brevity, I will constrain this to building the action system and skip over things like models, collisions, null checks, etc. I recommend having some familiarity with Unreal already. If you don't have any experience, this is a [good place to start](https://dev.epicgames.com/documentation/en-us/unreal-engine/first-hour-in-unreal-engine).
+This will focus on C++, though it could be built in Blueprints as well. For the sake of brevity, I will constrain this to building the action system and skip over things like models, collisions, null checks, etc. I recommend having some familiarity with Unreal already.
+
+If you don't have any experience, this is a [good place to start](https://dev.epicgames.com/documentation/en-us/unreal-engine/first-hour-in-unreal-engine).
 
 ## A First Action
 Almost every game lets players take actions. They can jump, swing a sword, or do any number of other things. Casting a spell is common and it's fairly straightforward to write a casting function or two.
 
-The casting functions will:
+I'll start by adding the ability to cast a fireball and magic missile.
+
+The cast functions will:
 - Trigger a casting animation
 - Delay while the animation finishes
 - Spawn the spell projectile
 
-Then the casting function can be bound to trigger with a key press.
-
-I'll add the ability to cast a fireball and magic missile.
+Then they'll be bound to trigger with a key press.
 
 ```cpp
 // MyCharacter.h
