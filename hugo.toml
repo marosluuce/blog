@@ -7,7 +7,7 @@ theme = 'hugo-coder'
 unsafe = true
 
 [[languages.en.menu.main]]
-name = "Blog"
+name = "Posts"
 url = "posts/"
 
 [caches.images]
