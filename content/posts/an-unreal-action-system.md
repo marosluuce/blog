@@ -112,9 +112,7 @@ void AMyCharacter::CastMagicMissile()
 }
 ```
 
-This example sets up two different spells but they share a casting animation and delay. It's not that much code. I could also quickly create an enemy, like a goblin wizard, who can also cast spells. Just copy-and-paste the fireball code into the new actor class.
-
-This approach works, but each already has scaling issues. Adding new spells requires re-implementing the spell function each time. Any changes to spell casting require changes to each spell function. This burden only increases over time as more spells and casting actors are added.
+This works, but already has scaling issues. Adding new spells requires two functions. Changes to spell casting require changes in each spell function. The spells also share a casting animation and delay. These limitations only grow over time as more spells and casting actors are added.
 
 ## Concentrating Power
 
