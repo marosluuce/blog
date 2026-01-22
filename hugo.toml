@@ -1,4 +1,4 @@
-baseURL = ''
+baseURL = 'https://marosluuce.github.io'
 languageCode = 'en-us'
 title = "marosluuce"
 theme = 'hugo-coder'
@@ -9,3 +9,6 @@ unsafe = true
 [[languages.en.menu.main]]
 name = "Blog"
 url = "posts/"
+
+[caches.images]
+dir = ':cacheDir/images'
