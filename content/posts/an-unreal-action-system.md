@@ -1,6 +1,6 @@
 +++
 date = '2026-01-21T09:18:24-05:00'
-draft = true
+draft = false
 title = 'An Unreal Action System'
 +++
 
@@ -251,7 +251,7 @@ void AMyCharacter::CastMagicMissile()
 
 This is a big improvement. `MyCharacter` is much smaller, with fewer methods and parameters. Adding a new spell takes less time to wire up.
 
-However `MyCharacter` can only cast spells and require changes in C++ to swap one spell for another.
+However `MyCharacter` can only cast spells and require changes in C++ to swap one spell for another, which is slow.
 
 ## Generalizing Actions
 
@@ -468,7 +468,7 @@ void AGoblinWizard::TriggerPrimaryAction()
 }
 ```
 
-A huge benefit to this approach is iteration speed. In addition to adding `ActionComponent`, I've used primary action and/or secondary action on `MyCharacter` and `GoblinWizard`. This allows actions to be configured in the editor by changing names of the action. This is significantly faster than updating and recompiling every change in C++.
+In addition to adding `ActionComponent`, I've used primary action and/or secondary action on `MyCharacter` and `GoblinWizard`. A huge benefit to this approach is iteration speed. An actor's starting actions and what primary or secondary actions trigger can be configured in the editor. This is significantly faster than updating and recompiling every change in C++.
 
 ## Next Steps
 
