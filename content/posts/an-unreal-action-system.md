@@ -6,29 +6,29 @@ title = 'An Unreal Action System'
 
 ## Chipping Away At Awe
 
-Unreal Engine is huge<sup>[citation needed]</sup>. It's billed as "The most powerful real-time 3D creation tool" and it is daunting to look at the 35.4 GB install size. I've wanted to learn Unreal for a long time but it's felt out of reach despite 13+ years of professional software development experience and 3+ years working with Unity for a large game studio. Perhaps it's the name or my inexperience with C++, though Rider helps offset that.
+Unreal Engine is huge<sup>[citation needed]</sup>. It's billed as "The most powerful real-time 3D creation tool" and the 35.4 GB install size underscores that. I've wanted to learn Unreal for a long time but it's felt out of reach despite 13+ years of professional software development experience and 3+ years working with Unity for a large game studio. Perhaps it's the name or my rusty C++, though Rider helps with that.
 
-Thankfully a friend recommended this [course by Tom Looman](https://courses.tomlooman.com/p/unrealengine-cpp). After several aborted attempts, I'm more than half through the course and am enjoying myself. Some aspects of working with Unreal seem very familiar now. This may in part be simply getting used to the editor and dusting off my C++.
+Thankfully a friend recommended this [course by Tom Looman](https://courses.tomlooman.com/p/unrealengine-cpp). I'm more than half through the course and quite enjoying myself. Some aspects of working with Unreal seem very familiar now. This may be in part simply getting used to the editor and dusting off my C++.
 
-A big source of comfort is recognizing familiar design patterns as I follow along and implement my own features. It shouldn't be surprising that software design patterns are applicable in Unreal. There's still a mountain of things I still don't understand, but it's paired with a feeling of possibility instead of dread.
+A big source of comfort is recognizing familiar design patterns as I follow along and implement my own features. It shouldn't be surprising that software design patterns are applicable in Unreal. There's a mountain of things I haven't learned yet, but I feel possibility instead of dread.
 
-You may be in a similar position to me, interested and intimidated. If that's the case, I want to walk through building a common feature of games, an action system. It's something that felt familiar to me while learning Unreal and built up my confidence.
+You may be in a similar position to me, interested and intimidated. If that's the case, I want to walk through a common feature of games, an action system. The journey felt familiar to me and building it boosted my confidence.
 
-This will focus on C++, though it could be built in Blueprints as well. For the sake of brevity, I will constrain this to building the action system and skip over things like models, collisions, null checks, etc. I recommend having some familiarity with Unreal already.
+This will focus on C++, though it could be done in Blueprints as well. For the sake of brevity, I will constrain this to the specifics of the action system and skip over things like import, models, null checks, etc. I recommend having at least a little familiarity with Unreal already.
 
 If you don't have any experience, this is a [good place to start](https://dev.epicgames.com/documentation/en-us/unreal-engine/first-hour-in-unreal-engine).
 
 ## A First Action
-Almost every game lets players take actions. They can jump, swing a sword, or do any number of other things. Casting a spell is common and it's fairly straightforward to write a casting function or two.
+Almost every game lets players take actions. They can jump, swing a sword, or do any number of things. Casting a spell is common and it's fairly straightforward to write a casting function or two.
 
-I'll start by adding the ability to cast a fireball and magic missile.
+I'll begin by adding the ability to cast a fireball and magic missile.
 
 The cast functions will:
 - Trigger a casting animation
 - Delay while the animation finishes
 - Spawn the spell projectile
 
-Then they'll be bound to trigger with a key press.
+Then I'll bind casting the spell to trigger with a key press.
 
 ```cpp
 // MyCharacter.h
@@ -38,7 +38,7 @@ class EXAMPLE_API AMyCharacter : public ACharacter
     GENERATED_BODY()
 
 protected:
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     TSubclassOf<UAnimMontage> SpellAnimation;
 
     UPROPERTY(EditDefaultsOnly)
@@ -47,7 +47,7 @@ protected:
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<AActor> MagicMissileClass;
 
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     float SpellCastDelay;
 
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
@@ -112,23 +112,24 @@ void AMyCharacter::CastMagicMissile()
 }
 ```
 
-This works, but it's already repeating itself and begging for deduplication. Adding new spells requires two functions, one to start the animation and another to finish casting the spell. Changes to spell casting require changes in each spell function. The spells also share a casting animation and delay. These limitations only grow over time as more spells and casting actors are added.
+This works, but a lot of duplication between the two spells. Adding new spells requires two functions, one to start the animation and another to finish casting the spell. Changes to spell casting require changes in each spell function. The spells also share a casting animation and delay. These limitations only grow over time as more spells and casting actors are added.
 
 ## Concentrating Power
 
-One way to centralize the spell casting behavior is to use the Command pattern. All the unique attributes of casting a spell can be collected, like which spell is being cast, how long does casting take, and which animation to use. Those properties can be wrapped in an spell action class with a convenient trigger method, like `Execute`.
+One way to centralize the spell casting behavior extracting a spell cast class. All the unique attributes of casting a spell can be collected, like which spell is being cast, how long does casting take, and which animation to use. Those properties can be wrapped in an spell cast class with a convenient trigger method, like `Cast`.
 
 ```cpp
-// SpellAction.h
+// SpellCast.h
 UCLASS()
-class EXAMPLE_API USpellAction : public UObject
+class EXAMPLE_API USpellCast : public UObject
 {
     GENERATED_BODY()
 
 public:
-    USpellAction();
+    USpellCast();
 
-    void Execute(AActor* InstigatorActor);
+    UFUNCTION(BlueprintCallable)
+    void Cast(AActor* InstigatorActor);
 
 protected:
     UPROPERTY(EditDefaultsOnly)
@@ -137,7 +138,7 @@ protected:
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<AActor> SpellClass;
 
-    UPROPERTY(EditAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     float AnimationDelay;
 
     UPROPERTY()
@@ -148,13 +149,13 @@ protected:
 ```
 
 ```cpp
-// SpellAction.cpp
-USpellAction()
+// SpellCast.cpp
+USpellCast()
 {
     AnimationDelay = 0.2f;
 }
 
-void USpellAction::Execute(AActor* InstigatorActor)
+void USpellCast::Cast(AActor* InstigatorActor)
 {
     Instigator = InstigatorActor;
     if (ACharacter* Character = Cast<ACharacter>(Instigator))
@@ -163,11 +164,11 @@ void USpellAction::Execute(AActor* InstigatorActor)
 
         FTimerHandle CastTimer;
         GetWorldTimerManager().SetTimer(CastTimer, this,
-                &USpellAction::CastSpell, AnimationDelay);
+                &USpellAction::SpawnSpell, AnimationDelay);
     }
 }
 
-void USpellAction::CastSpell()
+void USpellCast::SpawnSpell()
 {
     FActorSpawnParameters SpawnParameters;
     SpawnParamaters.Instigator = Instigator;
@@ -176,9 +177,9 @@ void USpellAction::CastSpell()
 }
 ```
 
-Now all the spell casting code lives in a single class. Different spells can have unique casting animations and delays. Triggering a spell is just a call `Execute` with a single parameter, the instigating actor. There's probably a way to grab the actor during creation, but this is simple enough.
+Now all the spell casting code lives in a single class. Different spells can have unique casting animations and delays. Triggering a spell is just a call `Cast` with a single parameter, the instigating actor.
 
-Using this pattern, it's much quicker to bind keys or npc logic to trigger different spells. Here's what the character class looks like using this new spell action.
+Using this pattern, it's much quicker to bind keys or npc logic to trigger different spells. Here's what the character class looks like using this new spell class.
 
 ```cpp
 // MyCharacter.h
@@ -187,11 +188,11 @@ class EXAMPLE_API AMyCharacter : public ACharacter
 {
     // ...
 protected:
-    UPROPERTY(EditDefaultsAnywhere)
-    TObjectPtr<USpellAction> Fireball;
+    UPROPERTY(EditDefaultsOnly)
+    TObjectPtr<USpellCast> Fireball;
 
-    UPROPERTY(EditDefaultsAnywhere)
-    TObjectPtr<USpellAction> MagicMissile;
+    UPROPERTY(EditDefaultsOnly)
+    TObjectPtr<USpellCast> MagicMissile;
 
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -214,12 +215,12 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::CastFireball()
 {
-    Fireball->Execute(this);
+    Fireball->Cast(this);
 }
 
 void AMyCharacter::CastMagicMissile()
 {
-    MagicMissile->Execute(this);
+    MagicMissile->Cast(this);
 }
 ```
 
@@ -242,7 +243,7 @@ public:
     virtual void Execute(AActor* InstigatorActor);
 
 private:
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     FName ActionName;
 }
 ```
@@ -254,12 +255,12 @@ virtual void Execute(AActor* InstigatorActor)
 }
 ```
 
-Now the spell action will derive from the action class, overriding `Execute`.
+Now spell cast will derive from the action class. `Cast` will be renamed to `Execute` and override it. It'll also be easier to group this class with other actions if `SpellCast` becomes `SpellCastAction`.
 
 ```cpp
-// SpellAction.h
+// SpellCast.h => SpellCastAction.h
 UCLASS()
-class EXAMPLE_API USpellAction : public UAction
+class EXAMPLE_API USpellCastAction : public UAction
 {
     // ...
 public:
@@ -269,14 +270,14 @@ public:
 ```
 
 ```cpp
-// SpellAction.cpp
+// SpellCast => SpellCastAction.cpp
 void Execute(AActor* InstigatorActor)
 {
-    // No changes necessary
+    // Renamed from Cast, no changes necessary
 }
 ```
 
-At last, I can create a new ActorComponent. This will be attached to any actor that needs to take actions. It will hold a list of actions and they can be triggered by name.
+At last, I can create a new ActorComponent. This will be a generic action component that can be attached to any actor that wants to take actions. It will hold a list of actions granted when starting play and each action can be triggered by name.
 
 ```cpp
 // ActionComponent.h
@@ -288,8 +289,8 @@ class EXAMPLE_API UActionComponent : public UActorComponent
 public:
     virtual void BeginPlay() override;
 
-    UPROPERTY(EditDefaultsAnywhere)
-    TArray<TSubclassOf<UAction>> DefaultActions;
+    UPROPERTY(EditDefaultsOnly)
+    TArray<TSubclassOf<UAction>> StartingActions;
 
     UPROPERTY()
     TArray<TObjectPtr<UAction>> Actions;
@@ -303,14 +304,14 @@ public:
 // ActionComponent.cpp
 void UActionComponent::BeginPlay() override
 {
-    for (TSubclassOf<UAction> Action : DefaultActions)
+    for (TSubclassOf<UAction> Action : StartingActions)
     {
         UAction* ToAdd = NewObject<UAction>(this, Action);
         Actions.Add(ToAdd);
     }
 }
 
-void UActionComponent::Execute(FName ActionName)
+void UActionComponent::ExecuteByName(FName ActionName)
 {
     for (TObjectPtr<UAction> Action : Actions)
     {
@@ -335,13 +336,13 @@ public:
     AMyCharacter();
 
 protected:
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     TObjectPtr<UActionComponent> ActionComponent;
 
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     FName PrimaryAction;
 
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     FName SecondaryAction;
 
     void PrimaryAction();
@@ -368,9 +369,7 @@ void AMyCharacter::SecondaryAction()
 }
 ```
 
-In addition to adding the new action component, I've updated the character to have a primary and secondary attack, instead of specifically named spells. This allows the character's actions to be configured in the editor by changing the primary and secondary action names. This is faster than recompiling every change in C++, allowing for faster iteration.
-
-With this component it's also very easy to add it to other actors, like a goblin wizard, with their own list of actions.
+With this component it's very easy to add it to other actors, like a goblin wizard, with their own list of actions.
 
 ```cpp
 // GoblinWizard.h
@@ -382,10 +381,10 @@ public:
     AGoblinWizard();
 
 protected:
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     TObjectPtr<UActionComponent> ActionComponent;
 
-    UPROPERTY(EditDefaultsAnywhere)
+    UPROPERTY(EditDefaultsOnly)
     FName PrimaryAction;
 }
 ```
@@ -403,13 +402,20 @@ void AGoblinWizard::PrimaryAction()
 }
 ```
 
+A huge benefit to this approach is iteration speed. In addition to adding the new action component, I've used primary action and/or secondary action on the character and goblin wizard. This allows the actions to be configured in the editor by changing names of the action. This is significantly faster than updating and recompiling every change in C++.
+
+## Next Steps
+
+At this point, I'm done for now. The `Action` allows any actor to do whatever I can dream up. I could add an action that lets a character turn on a light or a stranger one like transforming into a car for a minute. The possibilities are endless.
+
+The `ActionComponent` can be extended too. It could allow a character to "learn" a new spell when they read a book, adding a new spell to their list of actions. It could also be improved to prevent multiple actions from triggering at the same time or to avoid relying on strings to use the desired action. I'm sure there's a lot more that could be done.
+
 ## Wrapping Up
 
-At this point, the action system is complete enough but far from finished. Nothing prevents multiple actions from triggering at the same time. The action system could be extended to support an effect with duration or actions that trigger immediately. Actions could be granted as part of gameplay, instead of being preconfigured. Or maybe the character is stunned and can't perform an action for a period of time. The possibilities are endless.
-
-This is a good exercise in building reusable pieces in Unreal and seeing how it's not too scary working in Unreal. Hopefully it builds confidence, like it did for me. That said, for a real project it's probably a good idea to look into Unreal's provided ability system instead of writing something from scratch.
+This is a good exercise in building reusable pieces in Unreal and it should show that it's not too scary working in Unreal. It made me feel more confident and hopefully it helps you too. That said, for a real project it's probably a good idea to look into Unreal's provided ability system instead of writing something from scratch, even if it is fun.
 
 ## Further Reading
 
 - [Unreal's Official Game Ability System](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-ability-system-for-unreal-engine)
+- [Enhanced Input Tutorial](https://dev.epicgames.com/community/learning/tutorials/6dp3/unreal-engine-using-the-enhancedinput-system-in-c)
 - [Enhanced Input Documentation](https://dev.epicgames.com/documentation/en-us/unreal-engine/enhanced-input-in-unreal-engine)
