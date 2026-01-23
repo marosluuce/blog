@@ -39,6 +39,12 @@ class EXAMPLE_API AMyCharacter : public ACharacter
 
 protected:
     UPROPERTY(EditDefaultsOnly)
+    TObjectPtr<UInputAction> FireballAction;
+
+    UPROPERTY(EditDefaultsOnly)
+    TObjectPtr<UInputAction> MagicMissileAction;
+
+    UPROPERTY(EditDefaultsOnly)
     TObjectPtr<UAnimMontage> SpellAnimation;
 
     UPROPERTY(EditDefaultsOnly)
@@ -70,9 +76,9 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
     UEnhancedInputComponent* InputComponent =
         Cast<UEnhancedInputComponent>(PlayerInputComponent);
-    InputComponent->BindAction(SpellAction1, ETriggerEvent::Triggered,
+    InputComponent->BindAction(FireballAction, ETriggerEvent::Triggered,
         this, &AMyCharacter::BeginCastFireball);
-    InputComponent->BindAction(SpellAction2, ETriggerEvent::Triggered,
+    InputComponent->BindAction(MagicMissileAction, ETriggerEvent::Triggered,
         this, &AMyCharacter::BeginCastMagicMissile);
 }
 
@@ -204,10 +210,10 @@ class EXAMPLE_API AMyCharacter : public ACharacter
     // ...
 protected:
     UPROPERTY(EditDefaultsOnly)
-    TObjectPtr<USpellCast> Fireball;
+    TSubclassOf<USpellCast> FireballClass;
 
     UPROPERTY(EditDefaultsOnly)
-    TObjectPtr<USpellCast> MagicMissile;
+    TSubclassOf<USpellCast> MagicMissileClass;
 
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -222,20 +228,22 @@ protected:
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     // ...
-    InputComponent->BindAction(SpellAction1, ETriggerEvent::Triggered,
+    InputComponent->BindAction(FireballAction, ETriggerEvent::Triggered,
         this, &AMyCharacter::CastFireball);
-    InputComponent->BindAction(SpellAction2, ETriggerEvent::Triggered,
+    InputComponent->BindAction(MagicMissileAction, ETriggerEvent::Triggered,
         this, &AMyCharacter::CastMagicMissile);
 }
 
 void AMyCharacter::CastFireball()
 {
+    USpellCast* Fireball = NewObject<USpellCast>(this, FireballClass);
     Fireball->Cast(this);
 }
 
 void AMyCharacter::CastMagicMissile()
 {
-    MagicMissile->Cast(this);
+    USpellCast* MagicMissile = NewObject<USpellCast>(this, MagicMissileClass);
+    Fireball->Cast(this);
 }
 ```
 
@@ -296,6 +304,7 @@ class EXAMPLE_API USpellCastAction : public UAction
 {
     // ...
 public:
+    // Renamed from Cast
     virtual void Execute(AActor* InstigatorActor) override;
     // ...
 }
@@ -305,7 +314,7 @@ public:
 // SpellCast => SpellCastAction.cpp
 void Execute(AActor* InstigatorActor)
 {
-    // Renamed from Cast, no changes necessary
+    // Renamed from Cast
 }
 ```
 
@@ -370,6 +379,12 @@ public:
 protected:
     UPROPERTY(EditDefaultsOnly)
     TObjectPtr<UActionComponent> ActionComponent;
+
+    UPROPERTY(EditDefaultsOnly)
+    TObjectPtr<UInputAction> PrimaryAction;
+
+    UPROPERTY(EditDefaultsOnly)
+    TObjectPtr<UInputAction> SecondaryAction;
 
     UPROPERTY(EditDefaultsOnly)
     FName PrimaryActionName;
