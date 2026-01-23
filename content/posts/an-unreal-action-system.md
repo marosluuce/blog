@@ -14,7 +14,7 @@ A big source of comfort is recognizing familiar design patterns as I follow alon
 
 You may be in a similar position to me, interested and intimidated. If that's the case, I want to walk through a common feature of games, an action system. The journey felt familiar to me and building it boosted my confidence.
 
-This will focus on C++, though it could be done in Blueprints as well. For the sake of brevity, I will constrain this to the specifics of the action system and skip over things like import, models, null checks, etc. I recommend having at least a little familiarity with Unreal already.
+This will focus on C++, though it could be done in Blueprints as well. For the sake of brevity, I will constrain this to the specifics of the action system and skip over things like imports, meshes, null checks, etc.I recommend having at least a little familiarity with Unreal already.
 
 If you don't have any experience, this is a [good place to start](https://dev.epicgames.com/documentation/en-us/unreal-engine/first-hour-in-unreal-engine).
 
@@ -39,7 +39,7 @@ class EXAMPLE_API AMyCharacter : public ACharacter
 
 protected:
     UPROPERTY(EditDefaultsOnly)
-    TSubclassOf<UAnimMontage> SpellAnimation;
+    TObjectPtr<UAnimMontage> SpellAnimation;
 
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<AActor> FireballClass;
@@ -64,16 +64,16 @@ protected:
 
 ```cpp
 // MyCharacter.cpp
-void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     // Skipping Enhanced Input boilerplate, see Further Reading
 
     UEnhancedInputComponent* InputComponent =
         Cast<UEnhancedInputComponent>(PlayerInputComponent);
     InputComponent->BindAction(SpellAction1, ETriggerEvent::Triggered,
-        this, &MyCharacter::BeginCastFireball);
+        this, &AMyCharacter::BeginCastFireball);
     InputComponent->BindAction(SpellAction2, ETriggerEvent::Triggered,
-        this, &MyCharacter::BeginCastMagicMissile);
+        this, &AMyCharacter::BeginCastMagicMissile);
 }
 
 void AMyCharacter::BeginCastFireball()
@@ -82,13 +82,13 @@ void AMyCharacter::BeginCastFireball()
 
     FTimerHandle AttackTimer;
     GetWorldTimerManager().SetTimer(AttackTimer, this,
-        &MyCharacter::CastFireball, SpellCastDelay);
+        &AMyCharacter::CastFireball, SpellCastDelay);
 }
 
 void AMyCharacter::CastFireball()
 {
     FActorSpawnParameters SpawnParameters;
-    SpawnParamaters.Instigator = this;
+    SpawnParameters.Instigator = this;
 
     GetWorld()->SpawnActor<AActor>(FireballClass, GetTransform(), SpawnParameters);
 }
@@ -99,24 +99,24 @@ void AMyCharacter::BeginCastMagicMissile()
 
     FTimerHandle AttackTimer;
     GetWorldTimerManager().SetTimer(AttackTimer, this,
-        &MyCharacter::CastMagicMissile, SpellCastDelay);
+        &AMyCharacter::CastMagicMissile, SpellCastDelay);
 }
 
 void AMyCharacter::CastMagicMissile()
 {
     FActorSpawnParameters SpawnParameters;
-    SpawnParamaters.Instigator = this;
+    SpawnParameters.Instigator = this;
 
     GetWorld()->SpawnActor<AActor>(MagicMissileClass, GetTransform(),
         SpawnParameters);
 }
 ```
 
-This works, but a lot of duplication between the two spells. Adding new spells requires two functions, one to start the animation and another to finish casting the spell. Changes to spell casting require changes in each spell function. The spells also share a casting animation and delay. These limitations only grow over time as more spells and casting actors are added.
+This works, but there are problems. There's duplication between the two spells. They share a casting animation and delay. Adding new spells requires two functions, one to start the animation and another to finish casting the spell. The problems only grow as more spells and casting actors are added.
 
 ## Concentrating Power
 
-One way to centralize the spell casting behavior extracting a spell cast class. All the unique attributes of casting a spell can be collected, like which spell is being cast, how long does casting take, and which animation to use. Those properties can be wrapped in an spell cast class with a convenient trigger method, like `Cast`.
+One way to fix this is to extract spell casting to a class. All the unique attributes of casting a spell can be collected, like which spell is being cast, how long does casting take, and which animation to use. Those properties can be wrapped in a class with a convenient trigger method, like `Cast`.
 
 ```cpp
 // SpellCast.h
@@ -131,9 +131,12 @@ public:
     UFUNCTION(BlueprintCallable)
     void Cast(AActor* InstigatorActor);
 
+    // Necessary due to deriving from UObject
+    virtual UWorld* GetWorld() const override;
+
 protected:
     UPROPERTY(EditDefaultsOnly)
-    TSubclassOf<UAnimMontage> SpellAnimation;
+    TObjectPtr<UAnimMontage> SpellAnimation;
 
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<AActor> SpellClass;
@@ -142,7 +145,7 @@ protected:
     float AnimationDelay;
 
     UPROPERTY()
-    TObjectPtr<AActor*> Instigator;
+    AActor* Instigator;
 
     void SpawnSpell();
 }
@@ -150,7 +153,7 @@ protected:
 
 ```cpp
 // SpellCast.cpp
-USpellCast()
+USpellCast::USpellCast()
 {
     AnimationDelay = 0.2f;
 }
@@ -160,26 +163,38 @@ void USpellCast::Cast(AActor* InstigatorActor)
     Instigator = InstigatorActor;
     if (ACharacter* Character = Cast<ACharacter>(Instigator))
     {
-        Instigator->PlayAnimMontage(CastAnimation);
+        Character->PlayAnimMontage(CastAnimation);
 
         FTimerHandle CastTimer;
-        GetWorldTimerManager().SetTimer(CastTimer, this,
-                &USpellAction::SpawnSpell, AnimationDelay);
+        GetWorld()->GetTimerManager().SetTimer(CastTimer, this,
+                &USpellCast::SpawnSpell, AnimationDelay);
     }
 }
 
 void USpellCast::SpawnSpell()
 {
     FActorSpawnParameters SpawnParameters;
-    SpawnParamaters.Instigator = Instigator;
+    SpawnParamaters.Instigator = Cast<APawn>(Instigator);
 
-    GetWorld()->SpawnActor<AActor>(SpellClass, GetTransform(), SpawnParameters);
+    GetWorld()->SpawnActor<AActor>(SpellClass,
+        Instigator->GetTransform(), SpawnParameters);
+}
+
+UWorld* USpellCast::GetWorld() const
+{
+    // Fall back to the "owning" GetWorld
+    if (AActor* Outer = GetTypedOuter<AActor>())
+    {
+        return Outer->GetWorld();
+    }
+
+    return nullptr;
 }
 ```
 
 Now all the spell casting code lives in a single class. Different spells can have unique casting animations and delays. Triggering a spell is just a call `Cast` with a single parameter, the instigating actor.
 
-Using this pattern, it's much quicker to bind keys or npc logic to trigger different spells. Here's what the character class looks like using this new spell class.
+Using this pattern, it's much quicker to bind keys or npc logic to trigger different spells. Here's what `MyCharacter` looks like using `SpellCast`.
 
 ```cpp
 // MyCharacter.h
@@ -204,13 +219,13 @@ protected:
 
 ```cpp
 // MyCharacter.cpp
-void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     // ...
     InputComponent->BindAction(SpellAction1, ETriggerEvent::Triggered,
-        this, &MyCharacter::CastFireball);
+        this, &AMyCharacter::CastFireball);
     InputComponent->BindAction(SpellAction2, ETriggerEvent::Triggered,
-        this, &MyCharacter::CastMagicMissile);
+        this, &AMyCharacter::CastMagicMissile);
 }
 
 void AMyCharacter::CastFireball()
@@ -224,13 +239,13 @@ void AMyCharacter::CastMagicMissile()
 }
 ```
 
-This is a big improvement. The character class is much smaller, with fewer methods and parameters. Adding a new spell takes less time to wire up.
+This is a big improvement. `MyCharacter` is much smaller, with fewer methods and parameters. Adding a new spell takes less time to wire up.
 
-However the character still can only cast spells and requires changes in C++ to swap one spell for another.
+However `MyCharacter` can only cast spells and require changes in C++ to swap one spell for another.
 
 ## Generalizing Actions
 
-Introducing a generic action abstraction provides significantly more flexibility. To do this, I can add a new parent class with a name and an `Execute` method. Other classes will override and implement their own `Execute`.
+Introducing a generic action abstraction provides significantly more flexibility. To do this, I can add a new parent class with a name and an overridable `Execute` method.
 
 ```cpp
 // Action.h
@@ -242,7 +257,9 @@ class EXAMPLE_API UAction : public UObject
 public:
     virtual void Execute(AActor* InstigatorActor);
 
-private:
+    // Necessary due to deriving from UObject
+    virtual UWorld* GetWorld() const override;
+
     UPROPERTY(EditDefaultsOnly)
     FName ActionName;
 }
@@ -250,12 +267,27 @@ private:
 
 ```cpp
 // Action.cpp
-virtual void Execute(AActor* InstigatorActor)
+void Execute(AActor* InstigatorActor)
 {
+}
+
+UWorld* UAction::GetWorld() const
+{
+    // Fall back to the "owning" GetWorld
+    if (AActor* Outer = GetTypedOuter<AActor>())
+    {
+        return Outer->GetWorld();
+    }
+
+    return nullptr;
 }
 ```
 
-Now spell cast will derive from the action class. `Cast` will be renamed to `Execute` and override it. It'll also be easier to group this class with other actions if `SpellCast` becomes `SpellCastAction`.
+To update the spell cast:
+-  `SpellCast` derives from `Action`
+-  `SpellCast` is renamed to `SpellCastAction` for easier grouping
+- `Cast` is renamed to `Execute`, overriding it
+- `GetWorld` is removed, using the implementation in `Action`
 
 ```cpp
 // SpellCast.h => SpellCastAction.h
@@ -264,7 +296,7 @@ class EXAMPLE_API USpellCastAction : public UAction
 {
     // ...
 public:
-    virtual void Execute(AActor* InstigatorActor);
+    virtual void Execute(AActor* InstigatorActor) override;
     // ...
 }
 ```
@@ -277,7 +309,7 @@ void Execute(AActor* InstigatorActor)
 }
 ```
 
-At last, I can create a new ActorComponent. This will be a generic action component that can be attached to any actor that wants to take actions. It will hold a list of actions granted when starting play and each action can be triggered by name.
+At last, I can create a new `ActorComponent`. This will be a generic component that can be attached to any actor that wants to take actions. It will hold a list of actions granted when starting play and each action can be triggered by name.
 
 ```cpp
 // ActionComponent.h
@@ -302,7 +334,7 @@ public:
 
 ```cpp
 // ActionComponent.cpp
-void UActionComponent::BeginPlay() override
+void UActionComponent::BeginPlay()
 {
     for (TSubclassOf<UAction> Action : StartingActions)
     {
@@ -315,16 +347,16 @@ void UActionComponent::ExecuteByName(FName ActionName)
 {
     for (TObjectPtr<UAction> Action : Actions)
     {
-        if (Action->Name == ActionName)
+        if (Action->ActionName == ActionName)
         {
-            Action.execute(GetOwner());
+            Action->Execute(GetOwner());
             break;
         }
     }
 }
 ```
 
-Adding this component to any actor allows it to maintain a unique list of actions available to them. Here is what the character looks like using this new component;
+Adding this component to any actor allows it to maintain a unique list of actions available to them. Here is what `MyCharacter` looks like using `ActionComponent`.
 
 ```cpp
 // MyCharacter.h
@@ -340,36 +372,46 @@ protected:
     TObjectPtr<UActionComponent> ActionComponent;
 
     UPROPERTY(EditDefaultsOnly)
-    FName PrimaryAction;
+    FName PrimaryActionName;
 
     UPROPERTY(EditDefaultsOnly)
-    FName SecondaryAction;
+    FName SecondaryActionName;
 
-    void PrimaryAction();
-    void SecondaryAction();
+    void TriggerPrimaryAction();
+
+    void TriggerSecondaryAction();
     // ...
 }
 ```
 
 ```cpp
 // MyCharacter.cpp
-AMyCharacter()
+AMyCharacter::AMyCharacter()
 {
     ActionComponent = CreateDefaultSubobject<UActionComponent>("ActionComponent");
 }
 
-void AMyCharacter::PrimaryAction()
+void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-    ActionComponent->ExecuteByName(PrimaryAction);
+    // ...
+    InputComponent->BindAction(PrimaryAction, ETriggerEvent::Triggered,
+        this, &AMyCharacter::TriggerPrimaryAction);
+    InputComponent->BindAction(SecondaryAction, ETriggerEvent::Triggered,
+        this, &AMyCharacter::TriggerSecondaryAction);
 }
 
-void AMyCharacter::SecondaryAction()
+void AMyCharacter::TriggerPrimaryAction()
 {
-    ActionComponent->ExecuteByName(SecondaryAction);
+    ActionComponent->ExecuteByName(PrimaryActionName);
+}
+
+void AMyCharacter::TriggerSecondaryAction()
+{
+    ActionComponent->ExecuteByName(SecondaryActionName);
 }
 ```
 
-With this component it's very easy to add it to other actors, like a goblin wizard, with their own list of actions.
+With this component it's very easy to add it to other actors, like a goblin wizard, with a distinct list of actions.
 
 ```cpp
 // GoblinWizard.h
@@ -385,30 +427,33 @@ protected:
     TObjectPtr<UActionComponent> ActionComponent;
 
     UPROPERTY(EditDefaultsOnly)
-    FName PrimaryAction;
+    FName PrimaryActionName;
+
+    UFUNCTION(BlueprintCallable)
+    void TriggerPrimaryAction();
 }
 ```
 
 ```cpp
 // GoblinWizard.cpp
-AGoblinWizard()
+AGoblinWizard::AGoblinWizard()
 {
     ActionComponent = CreateDefaultSubobject<UActionComponent>("ActionComponent");
 }
 
-void AGoblinWizard::PrimaryAction()
+void AGoblinWizard::TriggerPrimaryAction()
 {
-    ActionComponent->ExecuteByName(PrimaryAction);
+    ActionComponent->ExecuteByName(PrimaryActionName);
 }
 ```
 
-A huge benefit to this approach is iteration speed. In addition to adding the new action component, I've used primary action and/or secondary action on the character and goblin wizard. This allows the actions to be configured in the editor by changing names of the action. This is significantly faster than updating and recompiling every change in C++.
+A huge benefit to this approach is iteration speed. In addition to adding `ActionComponent`, I've used primary action and/or secondary action on `MyCharacter` and `GoblinWizard`. This allows actions to be configured in the editor by changing names of the action. This is significantly faster than updating and recompiling every change in C++.
 
 ## Next Steps
 
 At this point, I'm done for now. The `Action` allows any actor to do whatever I can dream up. I could add an action that lets a character turn on a light or a stranger one like transforming into a car for a minute. The possibilities are endless.
 
-The `ActionComponent` can be extended too. It could allow a character to "learn" a new spell when they read a book, adding a new spell to their list of actions. It could also be improved to prevent multiple actions from triggering at the same time or to avoid relying on strings to use the desired action. I'm sure there's a lot more that could be done.
+The `ActionComponent` can be extended too. It could allow a character to "learn" a new spell when they read a book, adding a new spell to their list of actions. It could also be improved to prevent multiple actions from triggering at the same time or to avoid relying on strings to trigger the desired action. I'm sure there's a lot more that I haven't thought of.
 
 ## Wrapping Up
 
