@@ -65,7 +65,7 @@ protected:
     void BeginCastMagicMissile();
 
     void CastMagicMissile();
-}
+};
 ```
 
 ```cpp
@@ -142,7 +142,7 @@ public:
 
 protected:
     UPROPERTY(EditDefaultsOnly)
-    TObjectPtr<UAnimMontage> SpellAnimation;
+    TObjectPtr<UAnimMontage> CastAnimation;
 
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<AActor> SpellClass;
@@ -154,7 +154,7 @@ protected:
     AActor* Instigator;
 
     void SpawnSpell();
-}
+};
 ```
 
 ```cpp
@@ -180,7 +180,7 @@ void USpellCast::Cast(AActor* InstigatorActor)
 void USpellCast::SpawnSpell()
 {
     FActorSpawnParameters SpawnParameters;
-    SpawnParamaters.Instigator = Cast<APawn>(Instigator);
+    SpawnParameters.Instigator = Cast<APawn>(Instigator);
 
     GetWorld()->SpawnActor<AActor>(SpellClass,
         Instigator->GetTransform(), SpawnParameters);
@@ -220,7 +220,7 @@ protected:
     void CastFireball();
 
     void CastMagicMissile();
-}
+};
 ```
 
 ```cpp
@@ -228,6 +228,8 @@ protected:
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     // ...
+    UEnhancedInputComponent* InputComponent =
+        Cast<UEnhancedInputComponent>(PlayerInputComponent);
     InputComponent->BindAction(FireballAction, ETriggerEvent::Triggered,
         this, &AMyCharacter::CastFireball);
     InputComponent->BindAction(MagicMissileAction, ETriggerEvent::Triggered,
@@ -243,7 +245,7 @@ void AMyCharacter::CastFireball()
 void AMyCharacter::CastMagicMissile()
 {
     USpellCast* MagicMissile = NewObject<USpellCast>(this, MagicMissileClass);
-    Fireball->Cast(this);
+    MagicMissile->Cast(this);
 }
 ```
 
@@ -270,12 +272,12 @@ public:
 
     UPROPERTY(EditDefaultsOnly)
     FName ActionName;
-}
+};
 ```
 
 ```cpp
 // Action.cpp
-void Execute(AActor* InstigatorActor)
+void UAction::Execute(AActor* InstigatorActor)
 {
 }
 
@@ -307,12 +309,12 @@ public:
     // Renamed from Cast
     virtual void Execute(AActor* InstigatorActor) override;
     // ...
-}
+};
 ```
 
 ```cpp
 // SpellCast => SpellCastAction.cpp
-void Execute(AActor* InstigatorActor)
+void USpellCastAction::Execute(AActor* InstigatorActor)
 {
     // Renamed from Cast
 }
@@ -338,7 +340,7 @@ public:
 
     UFUNCTION(BlueprintCallable)
     void ExecuteByName(FName ActionName);
-}
+};
 ```
 
 ```cpp
@@ -392,11 +394,13 @@ protected:
     UPROPERTY(EditDefaultsOnly)
     FName SecondaryActionName;
 
+    virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
     void TriggerPrimaryAction();
 
     void TriggerSecondaryAction();
     // ...
-}
+};
 ```
 
 ```cpp
@@ -409,6 +413,8 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     // ...
+    UEnhancedInputComponent* InputComponent =
+        Cast<UEnhancedInputComponent>(PlayerInputComponent);
     InputComponent->BindAction(PrimaryAction, ETriggerEvent::Triggered,
         this, &AMyCharacter::TriggerPrimaryAction);
     InputComponent->BindAction(SecondaryAction, ETriggerEvent::Triggered,
@@ -446,7 +452,7 @@ protected:
 
     UFUNCTION(BlueprintCallable)
     void TriggerPrimaryAction();
-}
+};
 ```
 
 ```cpp
