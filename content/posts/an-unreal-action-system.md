@@ -2,6 +2,13 @@
 date = '2026-01-21T09:18:24-05:00'
 draft = false
 title = 'An Unreal Action System'
+description = ""
+slug = ""
+authors = []
+tags = []
+categories = []
+externalLink = ""
+series = []
 +++
 
 ## Chipping Away At Awe
