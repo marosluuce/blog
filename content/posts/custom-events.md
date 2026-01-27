@@ -13,21 +13,23 @@ series = []
 
 ## Intro
 
-Things change frequently in games. Take Super Mario Bros. where time ticks down and scores and coins go up. In Unreal there are several ways to implement UI elements and ensure they provide accurate information. Some of these require less code, but are more computationally expensive. Others require some setup, but are far more flexible.
+Things change quite frequently in games. In Super Mario Bros. scores and coins go up and time ticks down. There are several ways to implement similar UI elements in Unreal and ensure they provide accurate information. Some approaches require less code, but are more heavy-weight. Other ways require more setup and are far more flexible.
 
-I will focus on a scenario where a player runs right, crosses checkpoints, and jumps over gaps. They have a score. Every time the player reaches a checkpoint they get 500 points. If they fall in a pit and restart the level, they lose 300 points. Let's assume I've created a basic UI widget to display the score on the screen and I'll walk through how to ensure that the score is always up to date.
+I want focus on a simple game where a player runs right, crosses checkpoints, and jumps over gaps. They have a score. Every time the player reaches a checkpoint they get 500 points. If they fall in a pit they lose 300 points and restart from the last checkpoint. Let's assume I've already created a UI widget to display the score on the screen and I'll walk through different ways to ensure that the score is always up to date.
 
 ## A Naive First Approach
 
-UI widgets allow binding properties to functions. I can create a binding to the text field of my widget. In that function I can read the score from somewhere, set the UI widget text to the score, and call it a day. The good news that this is quick to write. The bad news is this runs every frame.
+UI widgets allow binding a property to a function. I can create a binding to the text field of my widget. In the bound function I can read the score, set the text to the score, and return. The good news that this is quick to write. The bad news is this runs every frame.
 
-In a game that runs at 30 frames per second, this widget has ~33.3 ms to update the score before the next frame starts. At 60 frames per second, that time decreases to ~16.6 ms. If the game ran at a blistering 144 frames per second, there's only ~6.9 ms available. That may be plenty of time for a score widget to update, but everything in the game likely needs to update within that shrinking time window as well.
+In a game that runs at 30 frames per second, this widget has ~33.3 ms to update the score before the next frame starts. At 60 frames per second, that time decreases to ~16.6 ms. If the game ran at a blistering 144 frames per second, there's only ~6.9 ms available.
 
-Eventually so many things are updating that the game can keep up and the player experiences lag. A more conservative approach would be to only update the score when the score changes. If the player isn't doing anything in the game, it's likely that the score is unchanged and the UI is being needlessly updated.
+There may be plenty of time for a score widget to update, but everything else in the game needs to update within that shrinking time window as well. Eventually so many things may be updating that the game can't finish in the space of one frame and the player experiences lag.
 
 ## Custom Events To The Rescue
 
-To ensure that the UI is only updated when the score changes, I can use a macro to define a custom event that will be triggered whenever the score changes.
+A more conservative approach is only handling updates when the underlying data changes. If the player standings still, it's unlikely that the score has changed and updating the UI unnecessary. The way to do this for the score element is by creating an event and publishing new values whenever the score changes. This allows the score widget to subscribe to those changes and ensure the UI only updates when the data has changed.
+
+Thankfully there's a handy macro for defining a custom event.
 
 ```cpp
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnScoreChanged, uint32, NewScore);
@@ -78,6 +80,8 @@ That's it actually. Every time something calls `UpdateScore` anything bound to t
 ## Binding The UI
 
 ## Wrapping Up
+
+This example may be a little artificial but it's good practice.
 
 Defining custom events is a very powerful technique that ensures changes are only processed when they occur, freeing up time for things that actually need to update on each frame.
 
