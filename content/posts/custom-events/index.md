@@ -1,6 +1,6 @@
 +++
-draft = true
-date = 2026-01-26T08:51:54-05:00
+draft = false
+date = 2026-01-30T11:35:00-05:00
 title = "Custom Events in Unreal"
 description = ""
 slug = ""
@@ -13,9 +13,9 @@ series = []
 
 ## Ch-Ch-Changes
 
-Things change frequently in games. In Labyrinth on the NES time ticks down while scores and gems go up. To implement similar UI elements, Unreal offers several approaches to display up to date information. One is binding functions, which is quick to wire up but potentially more expensive. The other is events, requiring a tad more setup, though they feel very familiar and are far more flexible.
+Things change frequently in games. In Labyrinth on the NES, time ticks down while scores and gems go up. To implement similar UI elements, Unreal offers several approaches to display up to date information. One is binding functions, which can be quickly wired up but is potentially more expensive. The other is events, requiring a tad more setup, which feels familiar and flexible.
 
-To explore these to methods, I want focus on a single aspect in a simple game, the player's score. The score goes up if they succeed at something and goes down if they fail. I've already created a UI widget to display the score on the screen and will walk through both ways of ensuring the score is accurate.
+To explore these two methods, I want focus on a single aspect in a simple game, the player's score. The score goes up if they succeed at something and goes down if they fail. I've already created a UI widget to display the score on the screen and will walk through both of ways of displaying the score accurately.
 
 ## Tracking Scores
 
@@ -49,7 +49,7 @@ void AMyPlayerState::UpdateScore(int32 Delta)
 }
 ```
 
-This score won't appear to change until the player's state is linked to the UI widget, so that's the next step.
+This score won't appear to change until the player's state is linked to the score widget, so that's the next step.
 
 ## A Naive First Approach
 
@@ -67,15 +67,15 @@ Eventually so many things are updating within a single frame that the game can't
 
 A more conservative approach is to process updates only when the underlying data changes. If the player stands still it's unlikely that the score has changed and updating the UI is unnecessary. For my player state, this means publishing an event when the score changes with any updated values.
 
-Thankfully Unreal provides a handy macro for defining a custom event.
+Unreal provides a handy macro for defining a custom event.
 
 ```cpp
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnScoreChanged, uint32, NewScore);
 ```
 
-This macro may look complicated but all it's doing is creating a struct with the name `FOnScoreChanged`. This delegate can then be used to define a variable in a class and broadcast `NewScore` to all listeners. This example only uses a single parameter but there are variants of the macro that allow up to 9.
+This macro may look complicated but it's just creating a special struct with the name `FOnScoreChanged`. This can then be used to define a variable in a class and broadcast `NewScore` to all listeners. This example only uses a single parameter but there are variants of the macro that allow up to 9 parameters.
 
-Here's a updated example of `MyPlayerState` tracking the score with a custom score updated event.
+Here's an updated example of `MyPlayerState` tracking the score with a custom score updated event.
 
 ```cpp
 // MyPlayerState.h
@@ -97,6 +97,8 @@ public:
     UFUNCTION(BlueprintCallable)
     void UpdateScore(int32 Delta);
 
+    UFUNCTION(BlueprintCallable)
+    int32 GetScore();
 protected:
     int32 Score = 0;
 }
@@ -113,20 +115,24 @@ void AMyPlayerState::UpdateScore(int32 Delta)
         OnScoreChanged.Broadcast(Score, Delta);
     }
 }
+
+int32 AMyPlayerState::GetScore()
+{
+    return Score;
+}
 ```
 
-The delegate `OnScoreChanged` expects two parameters, the new score and the amount by which it changed. The annotation `BlueprintAssignable` above `OnScoreChanged` enables listeners to bind to it in C++ and Blueprints.
+Any time the score needs to change callers still use `UpdateScore`. If it's a non-zero change, the score updates then publishes the change event. To broadcast, the delegate `OnScoreChanged` expects two parameters, the new score and the amount by which it changed. The annotation `BlueprintAssignable` above `OnScoreChanged` enables listeners to bind to it in C++ and Blueprints.
 
-Any time the score needs to change callers still use `UpdateScore`. If it's a non-zero change, the score updates then publishes the new score and change amount.
 
 ## Binding The UI
 
-To configure the listener, the score widget needs to subscribe to the new score changed event. A natural place to do this is in the score widget's construct function, `NativeConstruct`.
+To configure the listener, the score widget needs to subscribe to the score changed event. A natural place to do this is in the score widget's construct function, `NativeConstruct`.
 
 This constructor will:
-- Set the default score to `0`
 - Get (and cast) the owning player's player state to `AMyPlayerState`
 - Bind to `AMyPlayerState` score changes using `AddDynamic`
+- Set the default score to the current score
 
 `NativeConstruct` is called each time the score widget is added to the viewport and will ensure the binding exists whenever this widget is visible.
 
@@ -168,12 +174,12 @@ void UMyScoreWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	Score->SetText(FText::FromString(TEXT("0")));
-
 	APlayerController* Character = GetOwningPlayer();
 	AMyPlayerState* PlayerState = Character->GetPlayerState<AMyPlayerState>();
 
 	PlayerState->OnScoreChanged.AddDynamic(this, &UMyScoreWidget::OnScoreChanged);
+
+	OnScoreChanged(PlayerState->GetScore(), 0);
 }
 
 void UMyScoreWidget::OnScoreChanged(int32 NewScore, int32 Delta)
@@ -182,7 +188,7 @@ void UMyScoreWidget::OnScoreChanged(int32 NewScore, int32 Delta)
 }j
 ```
 
-Whenever the score changed event is broadcast, `UMyScoreWidget::OnScoreChanged` is executed. It will format and set the text value of the score widget.
+Whenever the score changed event is broadcast, `UMyScoreWidget::OnScoreChanged` is called. It will format and set the text value of the score widget.
 
 Binding the score widget in Blueprints looks similar.
 
@@ -192,7 +198,7 @@ Neither version of the score widget use `Delta` yet. I can imagine showing the c
 
 ## Wrapping Up
 
-A single UI element probably won't cause lag, even at high frame rates, but this is a good introduction to defining and binding events. It's a powerful technique to ensures changes are only processed when they occur, freeing up processing time for everything else in the frame. There are many existing events for you to take advantage of, like `OnHit` for triggering something upon a collision. And when you can't find an event to fit your needs, make your own.
+A single UI element probably won't cause lag, even at high frame rates, but this serves as a good introduction to defining and binding events. It's a powerful technique to ensures changes are only processed when they occur, freeing up processing time for everything else in the frame. There are many existing events for you to take advantage of, like `OnHit` for triggering something upon a collision. And when you can't find an event to fit your needs, make your own.
 
 ## Further Reading
 - [Multicast Delegates in Unreal](https://dev.epicgames.com/documentation/en-us/unreal-engine/multicast-delegates-in-unreal-engine)
