@@ -1,5 +1,5 @@
 +++
-draft = true
+draft = false
 date = 2026-02-27T14:40:09-05:00
 title = "Finding A Failure In A Haystack"
 description = ""
